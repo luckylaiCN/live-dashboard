@@ -6,8 +6,13 @@ export interface DeviceState {
   platform: string;
   app_id: string;
   app_name: string;
+  display_title?: string;
   last_seen_at: string;
   is_online: number;
+  extra?: {
+    battery_percent?: number;
+    battery_charging?: boolean;
+  };
 }
 
 export interface ActivityRecord {
@@ -17,12 +22,14 @@ export interface ActivityRecord {
   platform: string;
   app_id: string;
   app_name: string;
+  display_title?: string;
   started_at: string;
 }
 
 export interface TimelineSegment {
   app_name: string;
   app_id: string;
+  display_title?: string;
   started_at: string;
   ended_at: string | null;
   duration_minutes: number;
@@ -50,7 +57,8 @@ export async function fetchCurrent(signal?: AbortSignal): Promise<CurrentRespons
 }
 
 export async function fetchTimeline(date: string, signal?: AbortSignal): Promise<TimelineResponse> {
-  const url = `${API_BASE}/api/timeline?date=${encodeURIComponent(date)}`;
+  const tz = new Date().getTimezoneOffset(); // e.g. -480 for UTC+8
+  const url = `${API_BASE}/api/timeline?date=${encodeURIComponent(date)}&tz=${tz}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();

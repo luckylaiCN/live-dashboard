@@ -38,6 +38,20 @@ const descriptions: Record<string, string> = {
   "Android Studio": "正在用Android Studio写代码喵~",
   Cursor: "正在用Cursor疯狂写bug喵~",
   "Sublime Text": "正在用Sublime写代码喵~",
+  "Google Antigravity": "正在用Antigravity让AI帮忙写代码喵~",
+  Windsurf: "正在用Windsurf写代码喵~",
+  Zed: "正在用Zed写代码喵~",
+  CLion: "正在用CLion写C++喵~",
+  RustRover: "正在用RustRover写Rust喵~",
+  "JetBrains Fleet": "正在用Fleet写代码喵~",
+  HBuilderX: "正在用HBuilderX写前端喵~",
+
+  // Dev tools
+  "Docker Desktop": "正在用Docker搞容器喵~",
+  "GitHub Desktop": "正在用GitHub Desktop管理代码喵~",
+  Postman: "正在用Postman调接口喵~",
+  DBeaver: "正在用DBeaver查数据库喵~",
+  Navicat: "正在用Navicat查数据库喵~",
 
   // File managers
   文件资源管理器: "正在翻文件夹找东西喵~",
@@ -190,7 +204,216 @@ for (const [key, value] of Object.entries(descriptions)) {
   lowerIndex.set(key.toLowerCase(), value);
 }
 
-export function getAppDescription(appName: string): string {
+// ── Display title templates by app category ──
+// When displayTitle is available, use a richer template with the title embedded.
+
+type TitleTemplate = (displayTitle: string) => string;
+
+const titleTemplates = new Map<string, TitleTemplate>();
+
+function registerTemplate(names: string[], template: TitleTemplate) {
+  for (const n of names) {
+    titleTemplates.set(n.toLowerCase(), template);
+  }
+}
+
+// Video apps
+registerTemplate(
+  ["YouTube"],
+  (t) => `正在YouTube看「${t}」喵~`
+);
+registerTemplate(
+  ["哔哩哔哩", "bilibili"],
+  (t) => `正在B站看「${t}」喵~`
+);
+registerTemplate(
+  ["Netflix"],
+  (t) => `正在Netflix看「${t}」喵~`
+);
+registerTemplate(
+  ["爱奇艺"],
+  (t) => `正在爱奇艺看「${t}」喵~`
+);
+registerTemplate(
+  ["优酷"],
+  (t) => `正在优酷看「${t}」喵~`
+);
+registerTemplate(
+  ["腾讯视频"],
+  (t) => `正在腾讯视频看「${t}」喵~`
+);
+registerTemplate(
+  ["VLC", "PotPlayer", "mpv"],
+  (t) => `正在看「${t}」喵~`
+);
+
+// Music apps
+registerTemplate(
+  ["Spotify"],
+  (t) => `正在Spotify听「${t}」喵~`
+);
+registerTemplate(
+  ["网易云音乐"],
+  (t) => `正在网易云听「${t}」喵~`
+);
+registerTemplate(
+  ["QQ音乐"],
+  (t) => `正在QQ音乐听「${t}」喵~`
+);
+registerTemplate(
+  ["酷狗音乐"],
+  (t) => `正在酷狗听「${t}」喵~`
+);
+registerTemplate(
+  ["Apple Music"],
+  (t) => `正在Apple Music听「${t}」喵~`
+);
+registerTemplate(
+  ["foobar2000"],
+  (t) => `正在听「${t}」喵~`
+);
+
+// IDE / editors
+registerTemplate(
+  ["VS Code", "Visual Studio Code"],
+  (t) => `正在用VS Code写「${t}」喵~`
+);
+registerTemplate(
+  ["Cursor"],
+  (t) => `正在用Cursor写「${t}」喵~`
+);
+registerTemplate(
+  ["IntelliJ IDEA"],
+  (t) => `正在用IDEA写「${t}」喵~`
+);
+registerTemplate(
+  ["PyCharm", "WebStorm", "GoLand", "JetBrains Rider", "DataGrip", "Android Studio"],
+  (t) => `正在写「${t}」喵~`
+);
+registerTemplate(
+  ["Sublime Text"],
+  (t) => `正在用Sublime写「${t}」喵~`
+);
+registerTemplate(
+  ["Visual Studio"],
+  (t) => `正在用VS写「${t}」喵~`
+);
+registerTemplate(
+  ["Google Antigravity"],
+  (t) => `正在用Antigravity写「${t}」喵~`
+);
+registerTemplate(
+  ["Windsurf"],
+  (t) => `正在用Windsurf写「${t}」喵~`
+);
+registerTemplate(
+  ["Zed"],
+  (t) => `正在用Zed写「${t}」喵~`
+);
+registerTemplate(
+  ["CLion", "RustRover", "JetBrains Fleet", "HBuilderX"],
+  (t) => `正在写「${t}」喵~`
+);
+
+// Dev tools
+registerTemplate(
+  ["Docker Desktop"],
+  (t) => `正在用Docker搞「${t}」喵~`
+);
+registerTemplate(
+  ["GitHub Desktop"],
+  (t) => `正在GitHub上搞「${t}」喵~`
+);
+registerTemplate(
+  ["Postman"],
+  (t) => `正在用Postman调「${t}」喵~`
+);
+registerTemplate(
+  ["DBeaver", "Navicat"],
+  (t) => `正在查「${t}」数据库喵~`
+);
+
+// Gaming / Galgame — displayTitle IS the game title
+registerTemplate(
+  ["Steam"],
+  (t) => `正在Steam玩「${t}」喵~`
+);
+registerTemplate(
+  ["Epic Games"],
+  (t) => `正在Epic玩「${t}」喵~`
+);
+// Galgame engines — show gal title
+registerTemplate(
+  [
+    "Kirikiri", "KiriKiri", "BGI", "SiglusEngine", "Ethornell", "CatSystem2",
+    "いろとりどりのセカイ", "五彩斑斓的世界", "FAVORITE", "ものべの",
+    "CLANNAD", "Fate/stay night", "Summer Pockets", "サマーポケッツ",
+    "Doki Doki Literature Club", "WHITE ALBUM 2", "千恋＊万花",
+    "Making*Lovers", "Sabbat of the Witch", "サノバウィッチ",
+    "Riddle Joker", "喫茶ステラと死神の蝶",
+  ],
+  (t) => `正在攻略「${t}」喵~`
+);
+
+// Productivity
+registerTemplate(
+  ["Word", "Microsoft Word"],
+  (t) => `正在用Word写「${t}」喵~`
+);
+registerTemplate(
+  ["Excel", "Microsoft Excel"],
+  (t) => `正在用Excel看「${t}」喵~`
+);
+registerTemplate(
+  ["PowerPoint", "Microsoft PowerPoint"],
+  (t) => `正在做「${t}」PPT喵~`
+);
+registerTemplate(
+  ["OneNote"],
+  (t) => `正在OneNote写「${t}」喵~`
+);
+registerTemplate(
+  ["Notion"],
+  (t) => `正在Notion看「${t}」喵~`
+);
+registerTemplate(
+  ["Obsidian"],
+  (t) => `正在Obsidian写「${t}」喵~`
+);
+registerTemplate(
+  ["Typora"],
+  (t) => `正在Typora写「${t}」喵~`
+);
+
+// Browser — when display_title is available (video site page, generic page title)
+registerTemplate(
+  ["Google Chrome", "Chrome"],
+  (t) => `正在用Chrome看「${t}」喵~`
+);
+registerTemplate(
+  ["Microsoft Edge"],
+  (t) => `正在用Edge看「${t}」喵~`
+);
+registerTemplate(
+  ["Firefox"],
+  (t) => `正在用Firefox看「${t}」喵~`
+);
+registerTemplate(
+  ["Safari", "Opera", "Arc"],
+  (t) => `正在看「${t}」喵~`
+);
+
+export function getAppDescription(appName: string, displayTitle?: string): string {
   if (!appName) return DEFAULT_DESCRIPTION;
+
+  // If we have a display_title, try to use a rich template
+  if (displayTitle) {
+    const template = titleTemplates.get(appName.toLowerCase());
+    if (template) {
+      return template(displayTitle);
+    }
+  }
+
+  // Fallback to generic description
   return lowerIndex.get(appName.toLowerCase()) ?? DEFAULT_DESCRIPTION;
 }

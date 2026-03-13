@@ -80,6 +80,20 @@ def get_foreground_info() -> tuple[str, str] | None:
     return proc_name, title
 
 
+def get_battery_extra() -> dict:
+    """Return battery info dict, or empty dict if no battery (desktop PC)."""
+    try:
+        battery = psutil.sensors_battery()
+        if battery is None:
+            return {}
+        return {
+            "battery_percent": int(battery.percent),
+            "battery_charging": bool(battery.power_plugged),
+        }
+    except Exception:
+        return {}
+
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -151,13 +165,15 @@ class Reporter:
         self._consecutive_failures = 0
         self._current_backoff = 0
 
-    def send(self, app_id: str, window_title: str) -> bool:
+    def send(self, app_id: str, window_title: str, extra: dict | None = None) -> bool:
         """Send a report. Returns True on success."""
         payload = {
             "app_id": app_id,
             "window_title": window_title[:256],
             "timestamp": int(time.time() * 1000),
         }
+        if extra:
+            payload["extra"] = extra
         try:
             resp = self.session.post(self.endpoint, json=payload, timeout=10)
             if resp.status_code in (200, 201, 409):
@@ -228,7 +244,8 @@ def main() -> None:
             heartbeat_due = (now - last_report_time) >= heartbeat_interval
 
             if changed or heartbeat_due:
-                success = reporter.send(app_id, title)
+                extra = get_battery_extra()
+                success = reporter.send(app_id, title, extra)
                 if success:
                     prev_app = app_id
                     prev_title = title

@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 
 const DB_PATH = process.env.DB_PATH || "./live-dashboard.db";
 
-const db = new Database(DB_PATH, { create: true });
+export const db = new Database(DB_PATH, { create: true });
 
 // Performance pragmas
 db.run("PRAGMA journal_mode = WAL");
@@ -60,23 +60,67 @@ db.run(`
   )
 `);
 
+// ── Schema migration: add display_title + extra columns ──
+
+const KNOWN_TABLES = new Set(["activities", "device_states"]);
+
+function columnExists(table: string, column: string): boolean {
+  if (!KNOWN_TABLES.has(table)) {
+    throw new Error(`columnExists: unknown table "${table}"`);
+  }
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return rows.some((r) => r.name === column);
+}
+
+// activities.display_title
+if (!columnExists("activities", "display_title")) {
+  db.run("ALTER TABLE activities ADD COLUMN display_title TEXT DEFAULT ''");
+}
+
+// device_states.display_title
+if (!columnExists("device_states", "display_title")) {
+  db.run("ALTER TABLE device_states ADD COLUMN display_title TEXT DEFAULT ''");
+}
+
+// device_states.extra (JSON string for battery, etc.)
+if (!columnExists("device_states", "extra")) {
+  db.run("ALTER TABLE device_states ADD COLUMN extra TEXT DEFAULT '{}'");
+}
+
+// ── HMAC hash secret validation ──
+
+const HASH_SECRET = process.env.HASH_SECRET || "";
+if (!HASH_SECRET) {
+  console.error("[db] FATAL: HASH_SECRET not set. This is required for privacy-safe title hashing.");
+  console.error("[db] Generate one with: openssl rand -hex 32");
+  process.exit(1);
+}
+
+export function hmacTitle(title: string): string {
+  const hmac = new Bun.CryptoHasher("sha256", HASH_SECRET);
+  hmac.update(title);
+  return hmac.digest("hex");
+}
+
 // Prepared statements
 export const insertActivity = db.prepare(`
-  INSERT INTO activities (device_id, device_name, platform, app_id, app_name, window_title, title_hash, time_bucket, started_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO activities (device_id, device_name, platform, app_id, app_name, window_title, display_title, title_hash, time_bucket, started_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(device_id, app_id, title_hash, time_bucket) DO NOTHING
 `);
 
 export const upsertDeviceState = db.prepare(`
-  INSERT INTO device_states (device_id, device_name, platform, app_id, app_name, window_title, last_seen_at, is_online)
-  VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+  INSERT INTO device_states (device_id, device_name, platform, app_id, app_name, window_title, display_title, last_seen_at, extra, is_online)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   ON CONFLICT(device_id) DO UPDATE SET
     device_name = excluded.device_name,
     platform = excluded.platform,
     app_id = excluded.app_id,
     app_name = excluded.app_name,
     window_title = excluded.window_title,
+    display_title = excluded.display_title,
     last_seen_at = excluded.last_seen_at,
+    extra = excluded.extra,
     is_online = 1
 `);
 
@@ -102,8 +146,9 @@ export const getTimelineByDateAndDevice = db.prepare(`
 
 export const markOfflineDevices = db.prepare(`
   UPDATE device_states SET is_online = 0
-  WHERE datetime(last_seen_at) < datetime('now', '-2 minutes')
-  AND is_online = 1
+  WHERE is_online = 1
+  AND (last_seen_at IS NULL OR last_seen_at = '' OR datetime(last_seen_at) IS NULL
+       OR datetime(last_seen_at) < datetime('now', '-1 minute'))
 `);
 
 export const cleanupOldActivities = db.prepare(`

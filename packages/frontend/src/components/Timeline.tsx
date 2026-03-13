@@ -25,6 +25,7 @@ function formatDuration(minutes: number): string {
 
 interface AggregatedApp {
   appName: string;
+  displayTitle: string;
   totalMinutes: number;
   lastSeenAt: number; // timestamp ms
   isCurrent: boolean;
@@ -62,16 +63,21 @@ export default function Timeline({ segments, summary, currentAppByDevice }: Prop
   return (
     <div className="space-y-6">
       {Array.from(byDevice.entries()).map(([deviceId, { name, segs }]) => {
-        // Single-pass aggregation: collect last-seen time per app
+        // Single-pass aggregation: collect last-seen time + display_title per app
         const appMap = new Map<string, AggregatedApp>();
         for (const seg of segs) {
           const existing = appMap.get(seg.app_name);
           const segTime = new Date(seg.started_at).getTime() || 0;
           if (existing) {
-            if (segTime > existing.lastSeenAt) existing.lastSeenAt = segTime;
+            if (segTime > existing.lastSeenAt) {
+              existing.lastSeenAt = segTime;
+              // Keep the most recent display_title
+              if (seg.display_title) existing.displayTitle = seg.display_title;
+            }
           } else {
             appMap.set(seg.app_name, {
               appName: seg.app_name,
+              displayTitle: seg.display_title || "",
               totalMinutes: 0,
               lastSeenAt: segTime,
               isCurrent: false,
@@ -138,7 +144,7 @@ export default function Timeline({ segments, summary, currentAppByDevice }: Prop
                         style={{ backgroundColor: app.isCurrent ? `${color}30` : `${color}15` }}
                       >
                         <span className="text-xs font-medium truncate block">
-                          {getAppDescription(app.appName)}
+                          {getAppDescription(app.appName, app.displayTitle)}
                         </span>
                       </div>
 

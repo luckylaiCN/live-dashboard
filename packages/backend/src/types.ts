@@ -8,6 +8,10 @@ export interface ReportPayload {
   app_id: string;
   window_title?: string;
   timestamp?: string;
+  extra?: {
+    battery_percent?: number;
+    battery_charging?: boolean;
+  };
 }
 
 export interface ActivityRecord {
@@ -18,6 +22,7 @@ export interface ActivityRecord {
   app_id: string;
   app_name: string;
   window_title: string;
+  display_title: string;
   started_at: string;
   created_at: string;
 }
@@ -29,14 +34,16 @@ export interface DeviceState {
   app_id: string;
   app_name: string;
   window_title: string;
+  display_title: string;
   last_seen_at: string;
   is_online: number;
+  extra: string; // JSON string
 }
 
 export interface TimelineSegment {
   app_name: string;
   app_id: string;
-  window_title: string;
+  display_title: string;
   started_at: string;
   ended_at: string | null;
   duration_minutes: number;

@@ -16,8 +16,12 @@ export default function CurrentStatus({ devices }: Props) {
 
   const isOnline = !!active;
   const description = active
-    ? getAppDescription(active.app_name)
+    ? getAppDescription(active.app_name, active.display_title)
     : null;
+
+  // Battery info from the active device
+  const battery = active?.extra;
+  const hasBattery = battery && typeof battery.battery_percent === "number";
 
   return (
     <div className="status-bubble mb-6">
@@ -37,11 +41,18 @@ export default function CurrentStatus({ devices }: Props) {
             <p className="text-lg font-bold font-[var(--font-jp)] text-[var(--color-primary)] leading-relaxed status-text">
               {description}
             </p>
-            {onlineDevices.length > 1 && (
-              <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">
-                {onlineDevices.length} 台设备在线中
-              </p>
-            )}
+            <div className="flex items-center justify-center gap-3 mt-1.5">
+              {hasBattery && (
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  {battery.battery_charging ? "\u26A1" : "\u{1F50B}"}{battery.battery_percent}%
+                </span>
+              )}
+              {onlineDevices.length > 1 && (
+                <span className="text-[10px] text-[var(--color-text-muted)]">
+                  {onlineDevices.length} 台设备在线中
+                </span>
+              )}
+            </div>
           </>
         ) : (
           <div className="py-1">

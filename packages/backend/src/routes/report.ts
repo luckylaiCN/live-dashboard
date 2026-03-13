@@ -1,15 +1,10 @@
 import { authenticateToken } from "../middleware/auth";
 import { resolveAppName } from "../services/app-mapper";
 import { isNSFW } from "../services/nsfw-filter";
-import { insertActivity, upsertDeviceState } from "../db";
+import { processDisplayTitle } from "../services/privacy-tiers";
+import { insertActivity, upsertDeviceState, hmacTitle } from "../db";
 
 const MAX_TITLE_LENGTH = 256;
-
-function hashTitle(title: string): string {
-  const hasher = new Bun.CryptoHasher("sha256");
-  hasher.update(title);
-  return hasher.digest("hex");
-}
 
 export async function handleReport(req: Request): Promise<Response> {
   // Auth
@@ -61,11 +56,27 @@ export async function handleReport(req: Request): Promise<Response> {
   // Resolve app name
   const appName = resolveAppName(appId, device.platform);
 
-  // Dedup: time bucket based on server time (10-second windows)
-  const timeBucket = Math.floor(Date.now() / 10000);
-  const titleHash = hashTitle(windowTitle.toLowerCase().trim());
+  // Privacy: generate display_title (safe for public), then discard raw window_title
+  const displayTitle = processDisplayTitle(appName, windowTitle);
 
-  // Insert (ON CONFLICT DO NOTHING for dedup)
+  // Dedup: HMAC hash of the original title (keyed, not reversible)
+  const timeBucket = Math.floor(Date.now() / 10000);
+  const titleHash = hmacTitle(windowTitle.toLowerCase().trim());
+
+  // Parse extra (battery, etc.) — whitelist fields first, then serialize
+  let extraJson = "{}";
+  if (body.extra && typeof body.extra === "object" && !Array.isArray(body.extra)) {
+    const extra: Record<string, unknown> = {};
+    if (typeof body.extra.battery_percent === "number" && Number.isFinite(body.extra.battery_percent)) {
+      extra.battery_percent = Math.max(0, Math.min(100, Math.round(body.extra.battery_percent)));
+    }
+    if (typeof body.extra.battery_charging === "boolean") {
+      extra.battery_charging = body.extra.battery_charging;
+    }
+    extraJson = JSON.stringify(extra);
+  }
+
+  // Insert activity — window_title is NEVER stored (privacy: empty string)
   try {
     insertActivity.run(
       device.device_id,
@@ -73,7 +84,8 @@ export async function handleReport(req: Request): Promise<Response> {
       device.platform,
       appId,
       appName,
-      windowTitle,
+      "",           // window_title: always empty for privacy
+      displayTitle,
       titleHash,
       timeBucket,
       startedAt
@@ -93,8 +105,10 @@ export async function handleReport(req: Request): Promise<Response> {
       device.platform,
       appId,
       appName,
-      windowTitle,
-      new Date().toISOString()
+      "",           // window_title: always empty for privacy
+      displayTitle,
+      new Date().toISOString(),
+      extraJson
     );
   } catch (e: any) {
     console.error("[report] Device state update error:", e.message);
