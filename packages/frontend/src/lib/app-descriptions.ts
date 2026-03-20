@@ -574,6 +574,8 @@ export function getAppDescription(
         if (template) {
             return template(displayTitle);
         }
+        const desc = lowerIndex.get(displayTitle);
+        if (desc) return desc;
     }
 
     // Known app without template → use generic description
