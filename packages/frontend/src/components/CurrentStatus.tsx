@@ -16,12 +16,20 @@ export default function CurrentStatus({ devices }: Props) {
 
   const isOnline = !!active;
   const description = active
-    ? getAppDescription(active.app_name, active.display_title)
+    ? getAppDescription(active.app_name, active.display_title, active.extra?.music)
     : null;
 
   // Battery info from the active device
   const battery = active?.extra;
   const hasBattery = battery && typeof battery.battery_percent === "number";
+
+  // Music info — show standalone ♪ line, description should not duplicate it
+  const music = active?.extra?.music;
+  const musicText = music?.title
+    ? music.artist
+      ? `${music.artist} - ${music.title}`
+      : music.title
+    : null;
 
   return (
     <div className="status-bubble mb-6">
@@ -41,6 +49,11 @@ export default function CurrentStatus({ devices }: Props) {
             <p className="text-lg font-bold font-[var(--font-jp)] text-[var(--color-primary)] leading-relaxed status-text">
               {description}
             </p>
+            {musicText && (
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                ♪ 正在听：{musicText}
+              </p>
+            )}
             <div className="flex items-center justify-center gap-3 mt-1.5">
               {hasBattery && (
                 <span className="text-[10px] text-[var(--color-text-muted)]">

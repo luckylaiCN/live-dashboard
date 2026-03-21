@@ -374,6 +374,13 @@ for (const [key, value] of Object.entries(descriptions)) {
     lowerIndex.set(key.toLowerCase(), value);
 }
 
+// Music app names (lowercase) — used to avoid duplicate music info in descriptions
+const _musicAppNames = new Set([
+  "spotify", "网易云音乐", "qq音乐", "酷狗音乐", "apple music",
+  "foobar2000", "youtube music", "酷我音乐", "amazon music", "aimp",
+  "musicbee", "vlc", "potplayer", "windows media player",
+]);
+
 // ── Display title templates by app category ──
 // When displayTitle is available, use a richer template with the title embedded.
 

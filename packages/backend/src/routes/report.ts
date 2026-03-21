@@ -73,6 +73,16 @@ export async function handleReport(req: Request): Promise<Response> {
     if (typeof body.extra.battery_charging === "boolean") {
       extra.battery_charging = body.extra.battery_charging;
     }
+    const rawMusic = body.extra.music;
+    if (rawMusic != null && typeof rawMusic === "object" && !Array.isArray(rawMusic)) {
+      const music: Record<string, string> = {};
+      if (typeof rawMusic.title === "string") music.title = rawMusic.title.slice(0, 256);
+      if (typeof rawMusic.artist === "string") music.artist = rawMusic.artist.slice(0, 256);
+      if (typeof rawMusic.app === "string") music.app = rawMusic.app.slice(0, 64);
+      if (Object.keys(music).length > 0) {
+        extra.music = music;
+      }
+    }
     extraJson = JSON.stringify(extra);
   }
 

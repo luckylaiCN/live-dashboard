@@ -36,10 +36,13 @@ if [ -z "$SERVER_URL" ] || [ -z "$TOKEN" ] || [ "$TOKEN" = "YOUR_TOKEN_HERE" ]; 
     exit 1
 fi
 
-# Enforce HTTPS
+# Validate URL scheme: HTTPS always allowed, HTTP only for localhost/127.0.0.1
 case "$SERVER_URL" in
     https://*) ;;
-    *) log "ERROR: SERVER_URL must use HTTPS (got $SERVER_URL)"; exit 1 ;;
+    http://localhost[:/]*|http://localhost|http://127.0.0.1[:/]*|http://127.0.0.1)
+        log "WARN: HTTP allowed for localhost. Token sent in plaintext!" ;;
+    http://*) log "ERROR: HTTP only allowed for localhost/127.0.0.1. Use HTTPS for remote servers."; exit 1 ;;
+    *) log "ERROR: SERVER_URL must start with http:// or https://"; exit 1 ;;
 esac
 
 # Validate numeric fields (returns validated value via stdout)
@@ -71,8 +74,19 @@ log "Agent started — interval=${INTERVAL}s heartbeat=${HEARTBEAT}s"
 
 # ---------------------------------------------------------------------------
 # Helper: get foreground app package name
+# Uses `am stack list` (lightweight) with `dumpsys activity` as fallback.
 # ---------------------------------------------------------------------------
 get_foreground_app() {
+    # Preferred: am stack list — much lighter than dumpsys activity activities
+    local pkg
+    pkg=$(am stack list 2>/dev/null \
+        | grep -m1 'topActivity' \
+        | sed 's/.*topActivity=ComponentInfo{\([^/]*\).*/\1/')
+    if [ -n "$pkg" ]; then
+        echo "$pkg"
+        return
+    fi
+    # Fallback: dumpsys (heavy but widely compatible)
     dumpsys activity activities 2>/dev/null \
         | grep -m1 'mResumedActivity' \
         | sed 's/.*u0 \(.*\)\/.*/\1/' \
@@ -81,7 +95,7 @@ get_foreground_app() {
 }
 
 # ---------------------------------------------------------------------------
-# Helper: get current media title (e.g. video/music playing)
+# Helper: get current media info (music/video playing) as structured data
 # ---------------------------------------------------------------------------
 get_media_title() {
     dumpsys media_session 2>/dev/null \
@@ -91,6 +105,34 @@ get_media_title() {
         | sed 's/.*description=\(.*\)/\1/' \
         | sed 's/,.*$//' \
         | head -c 256
+}
+
+get_media_metadata() {
+    local raw title artist pkg
+    raw=$(dumpsys media_session 2>/dev/null)
+
+    # Extract active package name
+    pkg=$(printf '%s' "$raw" | grep -m1 'package=' | sed 's/.*package=\([^ ,]*\).*/\1/')
+
+    # Extract metadata fields
+    title=$(printf '%s' "$raw" | grep -m1 'description=' | sed 's/.*description=\([^,]*\).*/\1/' | head -c 256)
+    artist=$(printf '%s' "$raw" | grep -m1 'subtitle=' | sed 's/.*subtitle=\([^,]*\).*/\1/' | head -c 256)
+
+    if [ -z "$title" ]; then
+        echo ""
+        return
+    fi
+
+    local music_json
+    music_json="{\"title\":\"$(json_escape "$title")\""
+    if [ -n "$artist" ]; then
+        music_json="$music_json,\"artist\":\"$(json_escape "$artist")\""
+    fi
+    if [ -n "$pkg" ]; then
+        music_json="$music_json,\"app\":\"$(json_escape "$pkg")\""
+    fi
+    music_json="$music_json}"
+    echo "$music_json"
 }
 
 # ---------------------------------------------------------------------------
@@ -121,11 +163,17 @@ json_escape() {
 # Helper: send report
 # ---------------------------------------------------------------------------
 send_report() {
-    local app_id title ts body http_code
+    local app_id title extra_json ts body http_code
     app_id=$(json_escape "$1")
     title=$(json_escape "$2")
+    extra_json="$3"
     ts=$(date +%s)000
-    body="{\"app_id\":\"$app_id\",\"window_title\":\"$title\",\"timestamp\":$ts}"
+
+    if [ -n "$extra_json" ] && case "$extra_json" in "{"*"}"*) true;; *) false;; esac; then
+        body="{\"app_id\":\"$app_id\",\"window_title\":\"$title\",\"timestamp\":$ts,\"extra\":{\"music\":$extra_json}}"
+    else
+        body="{\"app_id\":\"$app_id\",\"window_title\":\"$title\",\"timestamp\":$ts}"
+    fi
 
     local http_code
     http_code=$(curl -s -o /dev/null -w '%{http_code}' \
@@ -183,7 +231,8 @@ while true; do
     fi
 
     if [ "$changed" -eq 1 ] || [ "$heartbeat_due" -eq 1 ]; then
-        if send_report "$app_id" "$title"; then
+        music_json=$(get_media_metadata)
+        if send_report "$app_id" "$title" "$music_json"; then
             prev_app="$app_id"
             prev_title="$title"
             last_report=$now
